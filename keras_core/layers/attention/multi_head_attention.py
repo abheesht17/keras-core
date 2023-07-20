@@ -326,7 +326,7 @@ class MultiHeadAttention(Layer):
                 attention_mask = ops.expand_dims(
                     attention_mask, axis=mask_expansion_axis
                 )
-        return self._softmax(attention_scores, mask=attention_mask)
+        return self._softmax(ops.cast(attention_scores, "float32"), mask=attention_mask)
 
     def _compute_attention(
         self, query, key, value, attention_mask=None, training=None
