@@ -21,6 +21,7 @@ class BaseOptimizer:
         use_ema=False,
         ema_momentum=0.99,
         ema_overwrite_frequency=None,
+        loss_scale_factor=1.0,
         name=None,
     ):
         self._lock = False
@@ -50,6 +51,7 @@ class BaseOptimizer:
                 )
         self.ema_momentum = ema_momentum
         self.ema_overwrite_frequency = ema_overwrite_frequency
+        self.loss_scale_factor = loss_scale_factor
 
         if self.clipnorm is not None and self.global_clipnorm is not None:
             raise ValueError(
@@ -537,6 +539,16 @@ class BaseOptimizer:
             # model variable value with its moving average stored inside
             # optimizer.
             self._overwrite_model_variables_with_average_value(var_list)
+
+    def get_scaled_loss(self, loss):
+        return self.loss_scale_factor * loss
+
+    def get_unscaled_gradients(self, gradients):
+        loss_scale_reciprocal = 1.0 / self.loss_scale_factor
+        return [
+            loss_scale_reciprocal * g if g is not None else None
+            for g in gradients
+        ]
 
     def get_config(self):
         """Returns the config of the optimizer.

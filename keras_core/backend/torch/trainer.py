@@ -41,6 +41,10 @@ class TorchTrainer(base_trainer.Trainer):
         )
         self._loss_tracker.update_state(loss)
 
+        # Scale the loss. Scaling is done after recording the loss in the
+        # tracker so that the reported loss during training isn't huge :)
+        loss = self.optimizer.get_scaled_loss(loss)
+
         # Compute gradients
         if self.trainable_weights:
             # Call torch.Tensor.backward() on the loss to compute gradients
@@ -49,6 +53,9 @@ class TorchTrainer(base_trainer.Trainer):
 
             trainable_weights = self.trainable_weights[:]
             gradients = [v.value.grad for v in trainable_weights]
+
+            # Before we update the weights, we need to "unscale" the gradients.
+            gradients = self.get_unscaled_gradients(gradients)
 
             # Update weights
             with torch.no_grad():

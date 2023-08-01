@@ -59,12 +59,21 @@ class TensorFlowTrainer(base_trainer.Trainer):
             loss = self.compute_loss(
                 x=x, y=y, y_pred=y_pred, sample_weight=sample_weight
             )
-        self._loss_tracker.update_state(loss)
+
+            # Track the loss before scaling the loss.
+            self._loss_tracker.update_state(loss)
+
+            # Scale the loss. Scaling is done after recording the loss in the
+            # tracker so that the reported loss during training isn't huge :)
+            loss = self.optimizer.get_scaled_loss(loss)
 
         # Compute gradients
         if self.trainable_weights:
             trainable_weights = [v.value for v in self.trainable_weights]
             gradients = tape.gradient(loss, trainable_weights)
+
+            # Before we update the weights, we need to "unscale" the gradients.
+            gradients = self.optimizer.get_unscaled_gradients(gradients)
 
             # Update weights
             self.optimizer.apply_gradients(zip(gradients, trainable_weights))

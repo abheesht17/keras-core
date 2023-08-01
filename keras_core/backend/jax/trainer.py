@@ -42,6 +42,15 @@ class JAXTrainer(base_trainer.Trainer):
         loss = self.compute_loss(x, y, y_pred, sample_weight, allow_empty=True)
         if losses:
             loss += ops.sum(losses)
+
+        if training:
+            # Scale the loss. Scaling is done after recording the loss in the
+            # tracker so that the reported loss during training isn't huge :)
+            unscaled_loss = loss
+            loss = self.optimizer.get_scaled_loss(loss)
+
+            return loss, (y_pred, non_trainable_variables, unscaled_loss)
+
         return loss, (y_pred, non_trainable_variables)
 
     def _eager_build(self, data_batch):
@@ -80,7 +89,10 @@ class JAXTrainer(base_trainer.Trainer):
         grad_fn = jax.value_and_grad(
             self.compute_loss_and_updates, has_aux=True
         )
-        (loss, (y_pred, non_trainable_variables)), grads = grad_fn(
+        (
+            loss,
+            (y_pred, non_trainable_variables, unscaled_loss),
+        ), grads = grad_fn(
             trainable_variables,
             non_trainable_variables,
             x,
@@ -88,6 +100,9 @@ class JAXTrainer(base_trainer.Trainer):
             sample_weight,
             training=True,
         )
+
+        # Unscale the gradients.
+        grads = self.optimizer.get_unscaled_gradients(grads)
 
         (
             trainable_variables,
@@ -102,7 +117,7 @@ class JAXTrainer(base_trainer.Trainer):
                 for ref_v, v in zip(self.metrics_variables, metrics_variables)
             ]
         ) as scope:
-            self._loss_tracker.update_state(loss)
+            self._loss_tracker.update_state(unscaled_loss)
             logs = self.compute_metrics(x, y, y_pred, sample_weight)
 
         new_metrics_variables = []
