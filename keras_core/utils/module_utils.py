@@ -29,6 +29,8 @@ class LazyModule:
             )
 
     def __getattr__(self, name):
+        if name == "_api_export_path":
+            raise AttributeError
         if self.module is None:
             self.initialize()
         return getattr(self.module, name)
@@ -37,3 +39,4 @@ class LazyModule:
 tensorflow = LazyModule("tensorflow")
 gfile = LazyModule("tensorflow.io.gfile", pip_name="tensorflow")
 tensorflow_io = LazyModule("tensorflow_io")
+scipy = LazyModule("scipy")
